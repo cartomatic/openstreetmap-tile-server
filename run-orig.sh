@@ -11,11 +11,9 @@ function setPostgresPassword() {
 }
 
 if [ "$#" -ne 1 ]; then
-    echo "osm-tile-server modified for mounting osm.pbf files from windows"
-    echo ""
     echo "usage: <import|run>"
     echo "commands:"
-    echo "    import: Set up the database and import /osm-data/data.osm.pbf"
+    echo "    import: Set up the database and import /data.osm.pbf"
     echo "    run: Runs Apache and renderd to serve tiles at /tile/{z}/{x}/{y}.png"
     echo "environment variables:"
     echo "    THREADS: defines number of threads used for importing / tile rendering"
@@ -44,25 +42,25 @@ if [ "$1" = "import" ]; then
     setPostgresPassword
 
     # Download Luxembourg as sample if no data is provided
-    if [ ! -f /osm-data/data.osm.pbf ] && [ -z "$DOWNLOAD_PBF" ]; then
-        echo "WARNING: No import file at /osm-data/data.osm.pbf, so importing Luxembourg as example..."
+    if [ ! -f /data.osm.pbf ] && [ -z "$DOWNLOAD_PBF" ]; then
+        echo "WARNING: No import file at /data.osm.pbf, so importing Luxembourg as example..."
         DOWNLOAD_PBF="https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf"
         DOWNLOAD_POLY="https://download.geofabrik.de/europe/luxembourg.poly"
     fi
 
     if [ -n "$DOWNLOAD_PBF" ]; then
         echo "INFO: Download PBF file: $DOWNLOAD_PBF"
-        wget $WGET_ARGS "$DOWNLOAD_PBF" -O /osm-data/data.osm.pbf
+        wget $WGET_ARGS "$DOWNLOAD_PBF" -O /data.osm.pbf
         if [ -n "$DOWNLOAD_POLY" ]; then
             echo "INFO: Download PBF-POLY file: $DOWNLOAD_POLY"
-            wget $WGET_ARGS "$DOWNLOAD_POLY" -O /osm-data/data.poly
+            wget $WGET_ARGS "$DOWNLOAD_POLY" -O /data.poly
         fi
     fi
 
     if [ "$UPDATES" = "enabled" ]; then
         # determine and set osmosis_replication_timestamp (for consecutive updates)
-        osmium fileinfo /osm-data/data.osm.pbf > /var/lib/mod_tile/data.osm.pbf.info
-        osmium fileinfo /osm-data/data.osm.pbf | grep 'osmosis_replication_timestamp=' | cut -b35-44 > /var/lib/mod_tile/replication_timestamp.txt
+        osmium fileinfo /data.osm.pbf > /var/lib/mod_tile/data.osm.pbf.info
+        osmium fileinfo /data.osm.pbf | grep 'osmosis_replication_timestamp=' | cut -b35-44 > /var/lib/mod_tile/replication_timestamp.txt
         REPLICATION_TIMESTAMP=$(cat /var/lib/mod_tile/replication_timestamp.txt)
 
         # initial setup of osmosis workspace (for consecutive updates)
@@ -70,12 +68,12 @@ if [ "$1" = "import" ]; then
     fi
 
     # copy polygon file if available
-    if [ -f /osm-data/data.poly ]; then
-        sudo -u renderer cp /osm-data/data.poly /var/lib/mod_tile/data.poly
+    if [ -f /data.poly ]; then
+        sudo -u renderer cp /data.poly /var/lib/mod_tile/data.poly
     fi
 
     # Import data
-    sudo -u renderer osm2pgsql -d gis --create --slim -G --hstore --tag-transform-script /home/renderer/src/openstreetmap-carto/openstreetmap-carto.lua --number-processes ${THREADS:-4} -S /home/renderer/src/openstreetmap-carto/openstreetmap-carto.style /osm-data/data.osm.pbf ${OSM2PGSQL_EXTRA_ARGS}
+    sudo -u renderer osm2pgsql -d gis --create --slim -G --hstore --tag-transform-script /home/renderer/src/openstreetmap-carto/openstreetmap-carto.lua --number-processes ${THREADS:-4} -S /home/renderer/src/openstreetmap-carto/openstreetmap-carto.style /data.osm.pbf ${OSM2PGSQL_EXTRA_ARGS}
 
     # Create indexes
     sudo -u postgres psql -d gis -f /home/renderer/src/openstreetmap-carto/indexes.sql
